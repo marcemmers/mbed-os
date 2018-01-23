@@ -27,6 +27,7 @@ from os import linesep, remove, makedirs
 from time import time
 from intelhex import IntelHex
 from json import load, dump
+from tools.arm_pack_manager import Cache
 
 from tools.utils import mkdir, run_cmd, run_cmd_ext, NotSupportedException,\
     ToolException, InvalidReleaseTargetException, intelhex_offset
@@ -547,11 +548,11 @@ def build_project(src_paths, build_path, target, toolchain_name,
         memap_instance = getattr(toolchain, 'memap_instance', None)
         memap_table = ''
         if memap_instance:
-            # Write output to stdout in text (pretty table) format
+            memap_bars = memap_instance.generate_output('bars', stats_depth,
+                    None, toolchain.target.device_name)
             memap_table = memap_instance.generate_output('table', stats_depth)
-
             if not silent:
-                print memap_table
+                print memap_bars
 
             # Write output to file in JSON format
             map_out = join(build_path, name + "_map.json")
