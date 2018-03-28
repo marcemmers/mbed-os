@@ -93,6 +93,14 @@ public:
      *    0 otherwise
      */
     int writeable();
+    
+    /** Determine if the peripheral is done transmitting
+     *
+     *  @returns
+     *    1 if transmission is complete,
+     *    0 otherwise
+     */    
+    int tx_complete();
 
     /** Attach a function to call whenever a serial interrupt is generated
      *
