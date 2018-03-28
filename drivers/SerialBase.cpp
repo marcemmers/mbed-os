@@ -68,6 +68,13 @@ int SerialBase::writeable() {
     return ret;
 }
 
+int SerialBase::tx_complete() {
+    lock();
+    int ret = serial_tx_complete(&_serial);
+    unlock();
+    return ret;    
+}
+
 void SerialBase::attach(Callback<void()> func, IrqType type) {
     lock();
     // Disable interrupts when attaching interrupt handler
