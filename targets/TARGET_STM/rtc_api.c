@@ -38,6 +38,7 @@ static RTC_HandleTypeDef RtcHandle;
 #if DEVICE_LOWPOWERTIMER && !MBED_CONF_TARGET_LOWPOWERTIMER_LPTIM
 
 #define GET_TICK_PERIOD(VALUE) (2048 * 1000000 / VALUE) /* 1s / SynchPrediv value * 2^11 (value to get the maximum precision value with no u32 overflow) */
+#define RTC_BYPASS_SHADOW
 
 static void (*irq_handler)(void);
 static void RTC_IRQHandler(void);
@@ -133,11 +134,23 @@ void rtc_init(void)
         error("RTC initialization failed");
     }
 
+#ifdef RTC_BYPASS_SHADOW    
+    __HAL_RTC_WRITEPROTECTION_DISABLE(&RtcHandle);
+    if(RTC_EnterInitMode(&RtcHandle) != HAL_OK) {
+        error("RTC set bypass failed");        
+    }
+    RtcHandle.Instance->CR |= RTC_CR_BYPSHAD;    
+    RtcHandle.Instance->ISR &= ((uint32_t)~RTC_ISR_INIT);
+    __HAL_RTC_WRITEPROTECTION_ENABLE(&RtcHandle);          
+    
+    rtc_write(0);
+#else
     rtc_synchronize(); // Wait for RSF
 
     if (!rtc_isenabled()) {
         rtc_write(0);
     }
+#endif
 }
 
 void rtc_free(void)
@@ -278,7 +291,11 @@ void rtc_write(time_t t)
 int rtc_isenabled(void)
 {
 #if !(TARGET_STM32F1)
+#ifdef RTC_BYPASS_SHADOW 
+    return ( (RTC->ISR & RTC_ISR_INITS) ==  RTC_ISR_INITS );
+#else
     return ( ((RTC->ISR & RTC_ISR_INITS) ==  RTC_ISR_INITS) && ((RTC->ISR & RTC_ISR_RSF) ==  RTC_ISR_RSF) );
+#endif
 #else /* TARGET_STM32F1 */
     return ((RTC->CRL & RTC_CRL_RSF) ==  RTC_CRL_RSF);
 #endif /* TARGET_STM32F1 */
@@ -307,10 +324,34 @@ static void RTC_IRQHandler(void)
 
 uint32_t rtc_read_us(void)
 {
+    RtcHandle.Instance = RTC;
+
+    #ifdef RTC_BYPASS_SHADOW    
+    RTC_TimeTypeDef timeStruct[2] = {0};
+    RTC_DateTypeDef dateStruct = {0};
+    uint8_t index = 0;
+    
+    /* Since the shadow registers are bypassed we have to read the time twice and compare them until
+    both times are the same. We don't have to read the date register because we don't use the
+    shadow register at all*/
+    HAL_RTC_GetTime(&RtcHandle, &timeStruct[0], RTC_FORMAT_BIN);
+        
+    do {
+        index ^= 1;
+        HAL_RTC_GetTime(&RtcHandle, &timeStruct[index], RTC_FORMAT_BIN);
+    } while (timeStruct[0].SubSeconds != timeStruct[1].SubSeconds);    
+    
+    if (timeStruct[index].SubSeconds > timeStruct[index].SecondFraction) {
+        /* SS can be larger than PREDIV_S only after a shift operation. In that case, the correct
+           time/date is one second less than as indicated by RTC_TR/RTC_DR. */
+        timeStruct.Seconds -= 1;
+    }
+    uint32_t RTCTime = timeStruct[index].Seconds + timeStruct[index].Minutes * 60 + timeStruct[index].Hours * 60 * 60;
+    uint32_t Time_us = ((timeStruct[index].SecondFraction - timeStruct[index].SubSeconds) * lp_TickPeriod_us) >> 11;
+#else
     RTC_TimeTypeDef timeStruct = {0};
     RTC_DateTypeDef dateStruct = {0};
 
-    RtcHandle.Instance = RTC;
     HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
 
     /* Reading RTC current time locks the values in calendar shadow registers until Current date is read
@@ -324,7 +365,7 @@ uint32_t rtc_read_us(void)
     }
     uint32_t RTCTime = timeStruct.Seconds + timeStruct.Minutes * 60 + timeStruct.Hours * 60 * 60;
     uint32_t Time_us = ((timeStruct.SecondFraction - timeStruct.SubSeconds) * lp_TickPeriod_us) >> 11;
-
+#endif    
     return (RTCTime * 1000000) + Time_us ;
 }
 
