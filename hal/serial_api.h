@@ -185,6 +185,13 @@ int  serial_readable(serial_t *obj);
  */
 int  serial_writable(serial_t *obj);
 
+/** Check if the serial peripheral is done with transmitting
+ *
+ * @param obj The serial object
+ * @return Non-zero value if a done transmitting, 0 otherwise.
+ */
+int  serial_tx_complete(serial_t *obj);
+
 /** Clear the serial peripheral
  *
  * @param obj The serial object
