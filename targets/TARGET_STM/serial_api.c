@@ -367,13 +367,52 @@ void serial_free(serial_t *obj)
 void serial_baud(serial_t *obj, int baudrate)
 {
     struct serial_s *obj_s = SERIAL_S(obj);
-
+    RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+    
     obj_s->baudrate = baudrate;
+    
+#if (defined(TARGET_STM32L0) || defined(TARGET_STM32L4))
+#if defined(USART1_BASE)
+    if (obj_s->uart == UART_1) {
+        /* Try to use HSI as clocksource for the uart, otherwise go to default */
+        PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1;
+        PeriphClkInitStruct.Usart1ClockSelection = RCC_USART1CLKSOURCE_HSI;
+        HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);      
+        if (init_uart(obj) == HAL_OK) {
+                return;
+        }
+        /* Change USART clock source to default and try again */
+        PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1;
+        PeriphClkInitStruct.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
+        HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);            
+    }
+#else
+    if (0){}
+#endif /* USART1_BASE */ 
+
+#if defined(USART2_BASE)
+    else if (obj_s->uart == UART_2) {
+        /* Try to use HSI as clocksource for the uart, otherwise go to default */
+        PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART2;
+        PeriphClkInitStruct.Usart2ClockSelection = RCC_USART2CLKSOURCE_HSI;
+        HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);      
+        if (init_uart(obj) == HAL_OK) {
+                return;
+        }
+        /* Change USART clock source to default and try again */
+        PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART2;
+        PeriphClkInitStruct.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+        HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);        
+    }
+#endif /* USART2_BASE */ 
+#else
+    if (0){}
+#endif /* (defined(TARGET_STM32L0) || defined(TARGET_STM32L4)) */
 #if defined(LPUART1_BASE)
         /* Note that LPUART clock source must be in the range [3 x baud rate, 4096 x baud rate], check Ref Manual */
-    if (obj_s->uart == LPUART_1) {
+    else if (obj_s->uart == LPUART_1) {
         /* If baudrate is lower than 9600 try to change to LSE */
-        RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
+        
         if (baudrate <= 9600 && __HAL_RCC_GET_FLAG(RCC_FLAG_LSERDY)) {
             PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LPUART1;
             PeriphClkInitStruct.Lpuart1ClockSelection = RCC_LPUART1CLKSOURCE_LSE;
@@ -525,15 +564,24 @@ HAL_StatusTypeDef init_uart(serial_t *obj)
         huart->Init.Mode = UART_MODE_TX_RX;
     }
 
+#if (defined(TARGET_STM32L0) || defined(TARGET_STM32L4))
+    if ( 0
+#if defined(USART1_BASE)
+        || huart->Instance == USART1
+#endif
+#if defined(USART2_BASE)
+        || huart->Instance == USART2
+#endif
 #if defined(LPUART1_BASE)
-    if (huart->Instance == LPUART1) {
-        if (obj_s->baudrate <= 9600) {
-            HAL_UARTEx_EnableClockStopMode(huart);
-            HAL_UARTEx_EnableStopMode(huart);
-        } else {
-            HAL_UARTEx_DisableClockStopMode(huart);
-            HAL_UARTEx_DisableStopMode(huart);
-        }
+        || huart->Instance == LPUART1
+#endif
+            ) {
+        HAL_UARTEx_EnableClockStopMode(huart);
+        HAL_UARTEx_EnableStopMode(huart);
+        UART_WakeUpTypeDef wakeup = {0};
+        wakeup.WakeUpEvent = UART_WAKEUP_ON_STARTBIT;
+        HAL_UARTEx_StopModeWakeUpSourceConfig(huart, wakeup);
+        __HAL_UART_ENABLE_IT(huart, UART_IT_WUF);
     }
 #endif
 
