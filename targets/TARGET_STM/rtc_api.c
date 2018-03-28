@@ -344,7 +344,7 @@ uint32_t rtc_read_us(void)
     if (timeStruct[index].SubSeconds > timeStruct[index].SecondFraction) {
         /* SS can be larger than PREDIV_S only after a shift operation. In that case, the correct
            time/date is one second less than as indicated by RTC_TR/RTC_DR. */
-        timeStruct.Seconds -= 1;
+        timeStruct[index].Seconds -= 1;
     }
     uint32_t RTCTime = timeStruct[index].Seconds + timeStruct[index].Minutes * 60 + timeStruct[index].Hours * 60 * 60;
     uint32_t Time_us = ((timeStruct[index].SecondFraction - timeStruct[index].SubSeconds) * lp_TickPeriod_us) >> 11;
