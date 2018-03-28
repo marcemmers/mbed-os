@@ -328,9 +328,8 @@ uint32_t rtc_read_us(void)
 {
     RtcHandle.Instance = RTC;
 
-    #ifdef RTC_BYPASS_SHADOW    
+#ifdef RTC_BYPASS_SHADOW    
     RTC_TimeTypeDef timeStruct[2] = {0};
-    RTC_DateTypeDef dateStruct = {0};
     uint8_t index = 0;
     
     /* Since the shadow registers are bypassed we have to read the time twice and compare them until
