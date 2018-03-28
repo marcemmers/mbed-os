@@ -303,10 +303,12 @@ int rtc_isenabled(void)
 
 void rtc_synchronize(void)
 {
+#ifndef RTC_BYPASS_SHADOW  
     RtcHandle.Instance = RTC;
     if (HAL_RTC_WaitForSynchro(&RtcHandle) != HAL_OK) {
         error("rtc_synchronize error\n");
     }
+#endif    
 }
 
 #if DEVICE_LOWPOWERTIMER && !MBED_CONF_TARGET_LOWPOWERTIMER_LPTIM
