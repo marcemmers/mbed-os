@@ -75,6 +75,11 @@ static void uart_irq(UARTName uart_name)
                     __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF);
                 }
             }
+            if (__HAL_UART_GET_FLAG(huart, UART_FLAG_WUF) != RESET) {
+                if (__HAL_UART_GET_IT(huart, UART_IT_WUF) != RESET) {
+                    __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_WUF);
+                }
+            }            
         }
     }
 }
