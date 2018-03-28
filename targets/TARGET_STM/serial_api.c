@@ -581,17 +581,31 @@ HAL_StatusTypeDef init_uart(serial_t *obj)
 #if defined(USART2_BASE)
         || huart->Instance == USART2
 #endif
-#if defined(LPUART1_BASE)
-        || huart->Instance == LPUART1
-#endif
             ) {
-        HAL_UARTEx_EnableClockStopMode(huart);
         HAL_UARTEx_EnableStopMode(huart);
         UART_WakeUpTypeDef wakeup = {0};
         wakeup.WakeUpEvent = UART_WAKEUP_ON_STARTBIT;
         HAL_UARTEx_StopModeWakeUpSourceConfig(huart, wakeup);
         __HAL_UART_ENABLE_IT(huart, UART_IT_WUF);
     }
+#if defined(LPUART1_BASE)
+    else if ( huart->Instance == LPUART1)
+    {
+        if(obj_s->baudrate <= 9600)
+        {
+            HAL_UARTEx_EnableClockStopMode(huart);
+        }
+        else
+        {
+            HAL_UARTEx_DisableClockStopMode(huart);
+        }
+        HAL_UARTEx_EnableStopMode(huart);
+        UART_WakeUpTypeDef wakeup = {0};
+        wakeup.WakeUpEvent = UART_WAKEUP_ON_STARTBIT;
+        HAL_UARTEx_StopModeWakeUpSourceConfig(huart, wakeup);
+        __HAL_UART_ENABLE_IT(huart, UART_IT_WUF);        
+    }
+#endif
 #endif
 
     return HAL_UART_Init(huart);
