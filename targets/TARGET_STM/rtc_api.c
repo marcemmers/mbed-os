@@ -351,7 +351,6 @@ uint32_t rtc_read_us(void)
     
     rtc_read_datetime(&dateStruct, &timeStruct);
     
-    }
 #if TARGET_STM32F1
     /* date information is null before first write procedure */
     /* set 01/01/1970 as default values */
