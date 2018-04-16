@@ -189,6 +189,30 @@ void rtc_free(void)
    tm_isdst    Daylight Saving Time flag
 */
 
+static void rtc_read_datetime(RTC_DateTypeDef * date, RTC_TimeTypeDef * time) {
+    RtcHandle.Instance = RTC;
+    
+#ifdef RTC_BYPASS_SHADOW    
+    RTC_TimeTypeDef timeStruct = {0};
+    
+    /* Since the shadow registers are bypassed we have to read the time twice and compare them until
+    both times are the same. We don't have to read the date register because we don't use the
+    shadow register at all*/
+        
+    do {
+        HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
+        HAL_RTC_GetTime(&RtcHandle, time,        RTC_FORMAT_BIN);
+        HAL_RTC_GetDate(&RtcHandle, date,        RTC_FORMAT_BIN);
+    } while (timeStruct.SubSeconds != time->SubSeconds);    
+#else
+    HAL_RTC_GetTime(&RtcHandle, time, RTC_FORMAT_BIN);
+
+    /* Reading RTC current time locks the values in calendar shadow registers until Current date is read
+    to ensure consistency between the time and date values */
+    HAL_RTC_GetDate(&RtcHandle, date, RTC_FORMAT_BIN);
+#endif    
+}
+
 /*
 Information about STM32F0, STM32F2, STM32F3, STM32F4, STM32F7, STM32L0, STM32L1, STM32L4:
 BCD format is used to store the date in the RTC. The year is store on 2 * 4 bits.
@@ -211,12 +235,8 @@ time_t rtc_read(void)
     RTC_TimeTypeDef timeStruct = {0};
     struct tm timeinfo;
 
-    RtcHandle.Instance = RTC;
-
     // Read actual date and time
-    // Warning: the time must be read first!
-    HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
-    HAL_RTC_GetDate(&RtcHandle, &dateStruct, RTC_FORMAT_BIN);
+    rtc_read_datetime(&dateStruct, &timeStruct);
 
 #if TARGET_STM32F1
     /* date information is null before first write procedure */
@@ -326,48 +346,48 @@ static void RTC_IRQHandler(void)
 
 uint32_t rtc_read_us(void)
 {
-    RtcHandle.Instance = RTC;
-
-#ifdef RTC_BYPASS_SHADOW    
-    RTC_TimeTypeDef timeStruct[2] = {0};
-    uint8_t index = 0;
-    
-    /* Since the shadow registers are bypassed we have to read the time twice and compare them until
-    both times are the same. We don't have to read the date register because we don't use the
-    shadow register at all*/
-    HAL_RTC_GetTime(&RtcHandle, &timeStruct[0], RTC_FORMAT_BIN);
-        
-    do {
-        index ^= 1;
-        HAL_RTC_GetTime(&RtcHandle, &timeStruct[index], RTC_FORMAT_BIN);
-    } while (timeStruct[0].SubSeconds != timeStruct[1].SubSeconds);    
-    
-    if (timeStruct[index].SubSeconds > timeStruct[index].SecondFraction) {
-        /* SS can be larger than PREDIV_S only after a shift operation. In that case, the correct
-           time/date is one second less than as indicated by RTC_TR/RTC_DR. */
-        timeStruct[index].Seconds -= 1;
-    }
-    uint32_t RTCTime = timeStruct[index].Seconds + timeStruct[index].Minutes * 60 + timeStruct[index].Hours * 60 * 60;
-    uint32_t Time_us = ((timeStruct[index].SecondFraction - timeStruct[index].SubSeconds) * lp_TickPeriod_us) >> 11;
-#else
     RTC_TimeTypeDef timeStruct = {0};
     RTC_DateTypeDef dateStruct = {0};
+    
+    rtc_read_datetime(&dateStruct, &timeStruct);
+    
+    }
+#if TARGET_STM32F1
+    /* date information is null before first write procedure */
+    /* set 01/01/1970 as default values */
+    if (dateStruct.Year == 0) {
+        dateStruct.Year = 2 ;
+        dateStruct.Month = 1 ;
+        dateStruct.Date = 1 ;
+    }
+#endif
 
-    HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
+    struct tm timeinfo;
+    // Setup a tm structure based on the RTC
+    /* tm_wday information is ignored by _rtc_maketime */
+    /* tm_isdst information is ignored by _rtc_maketime */
+    timeinfo.tm_mon  = dateStruct.Month - 1;
+    timeinfo.tm_mday = dateStruct.Date;
+    timeinfo.tm_year = dateStruct.Year + 68;
+    timeinfo.tm_hour = timeStruct.Hours;
+    timeinfo.tm_min  = timeStruct.Minutes;
+    timeinfo.tm_sec  = timeStruct.Seconds;
 
-    /* Reading RTC current time locks the values in calendar shadow registers until Current date is read
-    to ensure consistency between the time and date values */
-    HAL_RTC_GetDate(&RtcHandle, &dateStruct, RTC_FORMAT_BIN);
+    // Convert to timestamp
+    time_t t;
+    if (_rtc_maketime(&timeinfo, &t, RTC_4_YEAR_LEAP_YEAR_SUPPORT) == false) {
+        return 0;
+    }
 
     if (timeStruct.SubSeconds > timeStruct.SecondFraction) {
         /* SS can be larger than PREDIV_S only after a shift operation. In that case, the correct
            time/date is one second less than as indicated by RTC_TR/RTC_DR. */
         timeStruct.Seconds -= 1;
-    }
-    uint32_t RTCTime = timeStruct.Seconds + timeStruct.Minutes * 60 + timeStruct.Hours * 60 * 60;
+    }    
+    
     uint32_t Time_us = ((timeStruct.SecondFraction - timeStruct.SubSeconds) * lp_TickPeriod_us) >> 11;
-#endif    
-    return (RTCTime * 1000000) + Time_us ;
+
+    return (t * 1000000) + Time_us;
 }
 
 void rtc_set_wake_up_timer(uint32_t delta)
