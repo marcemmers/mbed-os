@@ -201,8 +201,8 @@ static void rtc_read_datetime(RTC_DateTypeDef * date, RTC_TimeTypeDef * time) {
         
     do {
         HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
+        HAL_RTC_GetDate(&RtcHandle, date,        RTC_FORMAT_BIN);        
         HAL_RTC_GetTime(&RtcHandle, time,        RTC_FORMAT_BIN);
-        HAL_RTC_GetDate(&RtcHandle, date,        RTC_FORMAT_BIN);
     } while (timeStruct.SubSeconds != time->SubSeconds);    
 #else
     HAL_RTC_GetTime(&RtcHandle, time, RTC_FORMAT_BIN);
@@ -351,6 +351,12 @@ uint32_t rtc_read_us(void)
     
     rtc_read_datetime(&dateStruct, &timeStruct);
     
+    if (timeStruct.SubSeconds > timeStruct.SecondFraction) {
+        /* SS can be larger than PREDIV_S only after a shift operation. In that case, the correct
+           time/date is one second less than as indicated by RTC_TR/RTC_DR. */
+        timeStruct.Seconds -= 1;
+    }      
+    
 #if TARGET_STM32F1
     /* date information is null before first write procedure */
     /* set 01/01/1970 as default values */
@@ -378,12 +384,6 @@ uint32_t rtc_read_us(void)
         return 0;
     }
 
-    if (timeStruct.SubSeconds > timeStruct.SecondFraction) {
-        /* SS can be larger than PREDIV_S only after a shift operation. In that case, the correct
-           time/date is one second less than as indicated by RTC_TR/RTC_DR. */
-        timeStruct.Seconds -= 1;
-    }    
-    
     uint32_t Time_us = ((timeStruct.SecondFraction - timeStruct.SubSeconds) * lp_TickPeriod_us) >> 11;
 
     return (t * 1000000) + Time_us;
