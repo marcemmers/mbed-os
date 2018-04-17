@@ -118,6 +118,10 @@ static void update_present_time(const ticker_data_t *const ticker)
     }
 
     uint64_t elapsed_ticks = (ticker_time - queue->tick_last_read) & queue->bitmask;
+    if(elapsed_ticks > ticker->queue->max_delta) {
+        MBED_ASSERT(false);
+        return;
+    }
     queue->tick_last_read = ticker_time;
 
     uint64_t elapsed_us;
