@@ -203,7 +203,7 @@ static void rtc_read_datetime(RTC_DateTypeDef * date, RTC_TimeTypeDef * time) {
         HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
         HAL_RTC_GetDate(&RtcHandle, date,        RTC_FORMAT_BIN);        
         HAL_RTC_GetTime(&RtcHandle, time,        RTC_FORMAT_BIN);
-    } while (timeStruct.SubSeconds != time->SubSeconds);    
+    } while (timeStruct.SubSeconds != time->SubSeconds || timeStruct.Seconds != time->Seconds);
 #else
     HAL_RTC_GetTime(&RtcHandle, time, RTC_FORMAT_BIN);
 
