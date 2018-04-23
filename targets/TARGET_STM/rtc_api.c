@@ -189,28 +189,53 @@ void rtc_free(void)
    tm_isdst    Daylight Saving Time flag
 */
 
+
+static inline uint8_t BcdToByte(uint8_t bcd) {
+    return ((bcd >> 4) & 0xF) * 10 + (bcd & 0xF);
+}
+
 static void rtc_read_datetime(RTC_DateTypeDef * date, RTC_TimeTypeDef * time) {
-    RtcHandle.Instance = RTC;
-    
-#ifdef RTC_BYPASS_SHADOW    
-    RTC_TimeTypeDef timeStruct = {0};
-    
+#ifdef RTC_BYPASS_SHADOW
     /* Since the shadow registers are bypassed we have to read the time twice and compare them until
     both times are the same. We don't have to read the date register because we don't use the
     shadow register at all*/
-        
+
+    uint32_t subSeconds1, subSeconds2;
+    uint32_t time1, time2;
+    uint32_t tempdate;
+
     do {
-        HAL_RTC_GetTime(&RtcHandle, &timeStruct, RTC_FORMAT_BIN);
-        HAL_RTC_GetDate(&RtcHandle, date,        RTC_FORMAT_BIN);        
-        HAL_RTC_GetTime(&RtcHandle, time,        RTC_FORMAT_BIN);
-    } while (timeStruct.SubSeconds != time->SubSeconds || timeStruct.Seconds != time->Seconds);
+        subSeconds1 = RTC->SSR;
+        time1 = RTC->TR & RTC_TR_RESERVED_MASK;
+        tempdate = RTC->DR;
+        time2 = RTC->TR & RTC_TR_RESERVED_MASK;
+        subSeconds2 = RTC->SSR;
+    } while (subSeconds1 != subSeconds2 || time1 != time2);
+
+    /* Get subseconds structure field from the corresponding register*/
+    time->SubSeconds = subSeconds1;
+
+    /* Get SecondFraction structure field from the corresponding register field*/
+    time->SecondFraction = (uint32_t)(RTC->PRER & RTC_PRER_PREDIV_S);
+
+    /* Convert the time structure parameters to Binary format */
+    time->Seconds = BcdToByte((uint8_t)((time1 & (RTC_TR_ST  | RTC_TR_SU))  >> 0  ));
+    time->Minutes = BcdToByte((uint8_t)((time1 & (RTC_TR_MNT | RTC_TR_MNU)) >> 8  ));
+    time->Hours   = BcdToByte((uint8_t)((time1 & (RTC_TR_HT  | RTC_TR_HU))  >> 16 ));
+
+    /* Fill the structure fields with the read parameters */
+    date->Date  = BcdToByte((uint8_t)((tempdate & (RTC_DR_DT | RTC_DR_DU)) >> 0  ));
+    date->Month = BcdToByte((uint8_t)((tempdate & (RTC_DR_MT | RTC_DR_MU)) >> 8  ));
+    date->Year  = BcdToByte((uint8_t)((tempdate & (RTC_DR_YT | RTC_DR_YU)) >> 16 ));
+
 #else
+    RtcHandle.Instance = RTC;
     HAL_RTC_GetTime(&RtcHandle, time, RTC_FORMAT_BIN);
 
     /* Reading RTC current time locks the values in calendar shadow registers until Current date is read
     to ensure consistency between the time and date values */
     HAL_RTC_GetDate(&RtcHandle, date, RTC_FORMAT_BIN);
-#endif    
+#endif
 }
 
 /*
@@ -346,9 +371,9 @@ static void RTC_IRQHandler(void)
 
 uint32_t rtc_read_us(void)
 {
-    RTC_TimeTypeDef timeStruct = {0};
-    RTC_DateTypeDef dateStruct = {0};
-    
+    // Don't need to initialize since rtc_read_datetime will set all relevant values
+    RTC_TimeTypeDef timeStruct;
+    RTC_DateTypeDef dateStruct;
     rtc_read_datetime(&dateStruct, &timeStruct);
     
     if (timeStruct.SubSeconds > timeStruct.SecondFraction) {
