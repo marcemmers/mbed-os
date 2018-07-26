@@ -49,3 +49,45 @@ nsapi_error_t QUECTEL_BC95_CellularPower::reset()
     _at.resp_start("REBOOTING", true);
     return _at.unlock_return_error();
 }
+
+nsapi_error_t QUECTEL_BC95_CellularPower::on()
+{
+    return set_power_level(1);
+}
+
+nsapi_error_t QUECTEL_BC95_CellularPower::is_device_ready()
+{
+    _at.lock();
+    _at.cmd_start("AT+CFUN?");
+    _at.cmd_stop();
+    _at.resp_start();
+    int level = _at.read_int();
+    _at.resp_stop();
+
+    if( level != 1 )
+    {
+        _at.unlock();
+        return NSAPI_ERROR_DEVICE_ERROR;
+    }
+
+    if(_at.get_last_error() != NSAPI_ERROR_OK)
+    {
+        return _at.unlock_return_error();
+    }
+
+    _at.lock();
+    _at.cmd_start("AT");
+    _at.cmd_stop();
+    _at.resp_start();
+    _at.resp_stop();
+
+    // we need to do this twice because for example after data mode the first 'AT' command will give modem a
+    // stimulus that we are back to command mode.
+    _at.clear_error();
+    _at.cmd_start("AT");
+    _at.cmd_stop();
+    _at.resp_start();
+    _at.resp_stop();
+
+    return _at.unlock_return_error();
+}
