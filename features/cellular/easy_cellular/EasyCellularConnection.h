@@ -39,7 +39,7 @@ public:
     EasyCellularConnection(bool debug = false);
     virtual ~EasyCellularConnection();
 
-    ATHandler &get_file_handle() { return ((AT_CellularNetwork *)_cellularConnectionFSM->get_network())->get_at_handler(); }
+    CellularConnectionFSM *get_cellular_device() { return _cellularConnectionFSM; }
 
 public:
     /** Set the Cellular network credentials
