@@ -50,6 +50,31 @@ nsapi_error_t QUECTEL_BC95_CellularPower::reset()
     return _at.unlock_return_error();
 }
 
+nsapi_error_t QUECTEL_BC95_CellularPower::set_power_level(int func_level, int do_reset)
+{
+    _at.lock();
+    _at.cmd_start("AT+CFUN=");
+    _at.write_int(func_level);
+    _at.write_int(do_reset);
+    _at.cmd_stop();
+    _at.resp_start();
+    _at.resp_stop();
+
+    _at.cmd_start("AT+CFUN?");
+    _at.cmd_stop();
+    _at.resp_start("+CFUN:");
+    int level = _at.read_int();
+    _at.resp_stop();
+
+    if( level != 1 )
+    {
+        _at.unlock();
+        return NSAPI_ERROR_DEVICE_ERROR;
+    }
+
+    return _at.unlock_return_error();
+}
+
 nsapi_error_t QUECTEL_BC95_CellularPower::on()
 {
     return set_power_level(1);
@@ -60,7 +85,7 @@ nsapi_error_t QUECTEL_BC95_CellularPower::is_device_ready()
     _at.lock();
     _at.cmd_start("AT+CFUN?");
     _at.cmd_stop();
-    _at.resp_start();
+    _at.resp_start("+CFUN:");
     int level = _at.read_int();
     _at.resp_stop();
 

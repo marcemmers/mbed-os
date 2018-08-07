@@ -31,6 +31,8 @@ public:
 public: //from CellularPower
     virtual nsapi_error_t set_at_mode();
 
+    virtual nsapi_error_t set_power_level(int func_level, int do_reset = 0);
+
     virtual nsapi_error_t reset();
 
     virtual nsapi_error_t on();
