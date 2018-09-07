@@ -52,6 +52,45 @@ nsapi_error_t QUECTEL_BC95_CellularPower::reset()
 
 nsapi_error_t QUECTEL_BC95_CellularPower::set_power_level(int func_level, int do_reset)
 {
+    nsapi_error_t tempError = NSAPI_ERROR_OK;
+
+    do
+    {
+        _at.lock();
+        _at.cmd_start("AT+NCONFIG=");
+        _at.write_string("AUTOCONNECT");
+        _at.write_string("FALSE");
+        _at.cmd_stop();
+        _at.resp_start();
+        _at.resp_stop();
+        tempError = _at.unlock_return_error();
+    } while( tempError != NSAPI_ERROR_OK );
+
+    do
+    {
+        _at.lock();
+        _at.cmd_start("AT+NCONFIG=");
+        _at.write_string("CR_0354_0338_SCRAMBLING");
+        _at.write_string("TRUE");
+        _at.cmd_stop();
+        _at.resp_start();
+        _at.resp_stop();
+        tempError = _at.unlock_return_error();
+    } while( tempError != NSAPI_ERROR_OK );
+
+    do
+    {
+        _at.lock();
+        _at.cmd_start("AT+NCONFIG=");
+        _at.write_string("CR_0859_SI_AVOID");
+        _at.write_string("FALSE");
+        _at.cmd_stop();
+        _at.resp_start();
+        _at.resp_stop();
+        tempError = _at.unlock_return_error();
+    } while( tempError != NSAPI_ERROR_OK );
+
+
     _at.lock();
     _at.cmd_start("AT+CFUN=");
     _at.write_int(func_level);
@@ -83,6 +122,12 @@ nsapi_error_t QUECTEL_BC95_CellularPower::on()
 nsapi_error_t QUECTEL_BC95_CellularPower::is_device_ready()
 {
     _at.lock();
+
+    _at.cmd_start("AT+NBAND=20");
+    _at.cmd_stop();
+    _at.resp_start();
+    _at.resp_stop();
+
     _at.cmd_start("AT+CFUN?");
     _at.cmd_stop();
     _at.resp_start("+CFUN:");
