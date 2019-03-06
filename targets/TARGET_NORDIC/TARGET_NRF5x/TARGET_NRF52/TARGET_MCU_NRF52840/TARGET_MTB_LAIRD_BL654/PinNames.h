@@ -164,6 +164,10 @@ typedef enum {
     p46 = P1_14,
     p47 = P1_15,
 
+    // Internal ADC Channels
+    ADC_VDD = 0x100,    // 0.0 = 0V, 1.0 = 3.6V
+    ADC_VDDH = 0x101,   // 0.0 = 0V, 5/6 = 5V       
+    
     // Not connected
     NC = (int)0xFFFFFFFF,
 

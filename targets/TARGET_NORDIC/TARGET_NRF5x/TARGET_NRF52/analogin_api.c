@@ -74,28 +74,7 @@ void analogin_init(analogin_t *obj, PinName pin)
 
     /* Use pinmap function to get associated channel. */
     uint32_t channel = pinmap_function(pin, PinMap_ADC);
-    MBED_ASSERT(channel != (uint32_t) NC);
-
-    /* Account for an off-by-one in Channel definition and Input definition. */
-    nrf_saadc_input_t input = channel + 1;
-
-    /* Configure channel and pin:
-     *  - the 1/4 gain and VDD/4 makes the reference voltage VDD.
-     */
-    nrf_saadc_channel_config_t channel_config = {
-        .resistor_p = NRF_SAADC_RESISTOR_DISABLED,
-        .resistor_n = NRF_SAADC_RESISTOR_DISABLED,
-        .gain       = NRF_SAADC_GAIN1_4,
-        .reference  = NRF_SAADC_REFERENCE_VDD4,
-        .acq_time   = NRF_SAADC_ACQTIME_10US,
-        .mode       = NRF_SAADC_MODE_SINGLE_ENDED,
-        .burst      = NRF_SAADC_BURST_DISABLED,
-        .pin_p      = input,
-        .pin_n      = NRF_SAADC_INPUT_DISABLED
-    };
-
-    ret_code_t result = nrf_drv_saadc_channel_init(channel, &channel_config);
-    MBED_ASSERT(result == NRF_SUCCESS);
+    MBED_ASSERT(channel != 0);
 
     /* Store channel in ADC object. */
     obj->channel = channel;
@@ -108,15 +87,42 @@ void analogin_init(analogin_t *obj, PinName pin)
  * @return A floating value representing the current input voltage
  */
 uint16_t analogin_read_u16(analogin_t *obj)
-{    
+{
     MBED_ASSERT(obj);
+
+    /* Configure channel and pin:
+     *  - the 1/4 gain and VDD/4 makes the reference voltage VDD.
+     */
+    nrf_saadc_channel_config_t channel_config = {
+        .resistor_p = NRF_SAADC_RESISTOR_DISABLED,
+        .resistor_n = NRF_SAADC_RESISTOR_DISABLED,
+        .gain       = NRF_SAADC_GAIN1_4,
+        .reference  = NRF_SAADC_REFERENCE_VDD4,
+        .acq_time   = NRF_SAADC_ACQTIME_10US,
+        .mode       = NRF_SAADC_MODE_SINGLE_ENDED,
+        .burst      = NRF_SAADC_BURST_DISABLED,
+        .pin_p      = (nrf_saadc_input_t) obj->channel,
+        .pin_n      = NRF_SAADC_INPUT_DISABLED
+    };
+
+    if (obj->channel == SAADC_CH_PSELP_PSELP_VDD ) {
+        channel_config.gain = NRF_SAADC_GAIN1_6;
+        channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL;
+    }
+    if (obj->channel == SAADC_CH_PSELP_PSELP_VDDHDIV5 ) {
+        channel_config.gain = NRF_SAADC_GAIN1_2;
+        channel_config.reference = NRF_SAADC_REFERENCE_INTERNAL;
+    }
+
+    ret_code_t result = nrf_drv_saadc_channel_init(0, &channel_config);
+    MBED_ASSERT(result == NRF_SUCCESS);
 
     /* Default return value is 0. */
     uint16_t retval = 0;
-    
+
     /* Read single channel, blocking. */
     nrf_saadc_value_t value = { 0 };
-    ret_code_t result = nrf_drv_saadc_sample_convert(obj->channel, &value);
+    result = nrf_drv_saadc_sample_convert(0, &value);
 
     /* nrf_saadc_value_t is a signed integer. Only take the absolute value. */
     if ((result == NRF_SUCCESS) && (value > 0)) {
@@ -125,6 +131,8 @@ uint16_t analogin_read_u16(analogin_t *obj)
         uint32_t normalized = value;
         retval = (normalized * ADC_16BIT_RANGE) / ADC_12BIT_RANGE;
     }
+
+    nrf_drv_saadc_channel_uninit( 0 );
 
     return retval;
 }
